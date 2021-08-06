@@ -7,6 +7,8 @@ const { NODE_ENV, CLIENT_ORIGIN } = require('./config')
 
 const app = express()
 
+const graphsRouter = require('./graphs/graphs-router')
+
 app.use(
     cors({
         origin: CLIENT_ORIGIN
@@ -15,6 +17,8 @@ app.use(
 
 app.use(morgan((NODE_ENV === 'production') ? 'common' : 'common'))
 app.use(helmet())
+
+app.use('/api/graphs', graphsRouter)
 
 app.get('/', (req, res) => {
 	res.send('Hello, world!')
