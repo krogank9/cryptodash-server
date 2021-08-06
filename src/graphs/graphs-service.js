@@ -1,5 +1,4 @@
-const CoinGecko = require('coingecko-api');
-const CoinGeckoClient = new CoinGecko();
+const GraphsCache = require('./graphs-cache')
 
 const timeFrames = {
     "1d": 60*60*24,
@@ -10,14 +9,7 @@ const timeFrames = {
 
 const GraphsService = {
     getGraph(coin, timeFrame) {
-        let timeStart = 0
-        if(timeFrame !== "all")
-            timeStart = Date.now()/1000 - timeFrames[timeFrame]
-        
-        return CoinGeckoClient.coins.fetchMarketChartRange(coin, {
-            from: timeStart,
-            to: Date.now()/1000,
-        });
+        return GraphsCache.getGraph(coin, timeFrame)
     },
 }
 

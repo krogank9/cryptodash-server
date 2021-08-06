@@ -7,9 +7,8 @@ const jsonParser = express.json()
 
 graphsRouter.route('/:graph_id')
     .all((req, res, next) => {
-        console.log
-        let coinId = req.params.graph_id.split("_")[0]
-        let timeFrame = req.params.graph_id.split("_")[1]
+        let coinId = req.params.graph_id.split("_").slice(0,-1).join("_")
+        let timeFrame = req.params.graph_id.split("_").pop()
         GraphsService.getGraph(
             coinId,
             timeFrame
