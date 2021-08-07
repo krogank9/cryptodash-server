@@ -85,7 +85,7 @@ function populateMapAndCoins() {
     for(let coin of DefaultCoins) {
         let coinId = coinIdMap[coin]
         GraphsCache.getGraph(coinId, "1d").then(data => {
-            fs.writeFile(`static_data/${coin}_1d.json`, allChunks, function (err) {
+            fs.writeFile(`static_data/${coin}_1d.json`, data, function (err) {
                 if (err) return console.log(err);
                 console.log(`${coin} graph data > "static_data/${coin}_1d.json"`);
             });
