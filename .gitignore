@@ -28,3 +28,6 @@ yarn-error.log*
 
 # cache
 /graph_cache/*.json
+
+# pm2
+ecosystem.config.js
