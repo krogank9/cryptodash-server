@@ -142,17 +142,17 @@ class GraphsCache {
 
             if (!curDataContained && (dataOverlaps || dataIsClose)) {
                 // Make a copy before we mutate
-                let fillData_ = fillData.slice(0)
+                let fillDataCopy = fillData.slice(0)
 
                 // Interweave the data keeping the time values in order
                 let interweaved = []
-                while (fillData_.length && curData.length) {
-                    if (fillData_[0][0] < curData[0][0])
-                        interweaved.push(fillData_.shift())
+                while (fillDataCopy.length && curData.length) {
+                    if (fillDataCopy[0][0] < curData[0][0])
+                        interweaved.push(fillDataCopy.shift())
                     else
                         interweaved.push(curData.shift())
                 }
-                interweaved = interweaved.concat(fillData_, curData)
+                interweaved = interweaved.concat(fillDataCopy, curData)
 
                 // Filter excess granularity before save
                 interweaved = interweaved.filter((d, i) => {
