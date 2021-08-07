@@ -53,7 +53,7 @@ function waitForMarket(cb) {
         setTimeout(function() { waitForMarket(cb) }, 10)
 }
 
-var DefaultCoins = require('./static_data/default_coins.json')
+var DefaultCoins = JSON.parse(fs.readFileSync('./static_data/default_coins.json'))
 
 function populateMapAndCoins() {
     let marketData = JSON.parse(marketDataChunks)
