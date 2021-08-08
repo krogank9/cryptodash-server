@@ -154,15 +154,16 @@ class GraphsCache {
                 }
                 interweaved = interweaved.concat(fillDataCopy, curData)
 
-                // Filter excess granularity before save
-                interweaved = interweaved.filter((d, i) => {
-                    if (i === 0 || i === interweaved.length - 1)
-                        return true
+                let filteredToGranularity = [interweaved[0]]
+                for(let i = 1; i < interweaved.length - 1; i++) {
+                    let timeBetween = interweaved[i][0] - filteredToGranularity[filteredToGranularity.length - 1][0]
+                    if(timeBetween >= granularityIntervals[granularity] * 0.95) {
+                        filteredToGranularity.push(interweaved[i])
+                    }
+                }
+                filteredToGranularity.push(interweaved.pop())
 
-                    let neighborsTimeSpan = interweaved[i + 1][0] - interweaved[i - 1][0]
-                    return neighborsTimeSpan >= granularityIntervals[granularity] * 0.8
-                })
-                that.saveCacheFile(coin, granularity, interweaved, fillGrabbedAllFromServer || curGrabbedAllFromServer)
+                that.saveCacheFile(coin, granularity, filteredToGranularity, fillGrabbedAllFromServer || curGrabbedAllFromServer)
             }
             else {
                 that.saveCacheFile(coin, granularity, fillData, fillGrabbedAllFromServer)
