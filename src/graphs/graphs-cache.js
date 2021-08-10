@@ -1,13 +1,14 @@
 const CoinGecko = require('coingecko-api');
 const CoinGeckoClient = new CoinGecko();
 var fs = require('fs');
+var shell = require('shelljs');
 
 const ONE_MIN = 1000 * 60
 const ONE_HOUR = ONE_MIN * 60
 const ONE_DAY = ONE_HOUR * 24
 const ONE_WEEK = ONE_DAY * 7
 const ONE_MONTH = ONE_DAY * 30
-const ONE_YEAR = ONE_MONTH * 12
+const ONE_YEAR = ONE_DAY * 365
 
 const timeFrames = {
     "1d": ONE_DAY,
@@ -23,6 +24,13 @@ const granularityIntervals = {
     "all": ONE_DAY, // 1 day
 }
 
+// Tolerances for how up-to-date the data should be for different granularities
+const granularityTimeTolerances = {
+    "1d": ONE_MIN * 30,
+    "3mo": ONE_HOUR * 12,
+    "all": ONE_DAY * 2,
+}
+
 // So, we want the cache to, basically, upon requesting data for the given time frame, simply see if there is cached data available to serve.
 // If not, that's where it gets interesting.
 // We want to intelligently populate all the timeframes longer than the requested one and append the data, switching it to the larger granularity.
@@ -32,6 +40,47 @@ const granularityIntervals = {
 // We will store caches of each time frame/time interval as returned from CoinGecko. 1d (5min), 1d+-3mo (hourly), 3mo+ (daily). so 3 caches, <=1d, <=90d, and all.
 
 class GraphsCache {
+    constructor() {
+        // Only one prophet model at a time so we don't crash our server...
+        this.prophetPromiseQueue = Promise.resolve()
+    }
+
+    updateProphetModel(coin, data) {
+        return new Promise((resolvePromise, rejectPromise) => {
+            data = data.filter(([time, _]) => time >= Date.now() - ONE_YEAR)
+            let csv = '"ds","y"\n' + data.map(([unixTimestampMs, val]) => {
+                // Convert date to format prophet likes
+                var d = new Date(unixTimestampMs),
+                    yyyy = d.getFullYear(),
+                    mm = ('0' + (d.getMonth() + 1)).slice(-2),
+                    dd = ('0' + d.getDate()).slice(-2),
+                    hh = d.getHours(),
+                    h = hh,
+                    min = ('0' + d.getMinutes()).slice(-2),
+                    sec = ('0' + d.getSeconds()).slice(-2);
+
+                let pandaTimestamp = yyyy + '-' + mm + '-' + dd + ' ' + h + ':' + min + ':' + sec
+
+                return `"${pandaTimestamp}",${val}`
+            }).join("\n") + "\n"
+
+            // Run python script to get a 90 day forecast of what will happen next
+            console.log(`Updating prophet model for ${coin}`)
+            fs.writeFileSync(`cryptodash-prediction/${coin}.csv`, csv)
+            shell.exec(`(cd ./cryptodash-prediction && python predict.py ${coin}.csv && rm ${coin}.csv)`, (err, stdout, stderr) => {
+                console.log(`Finished running prophet prediction for ${coin}`)
+                resolvePromise()
+            })
+        })
+    }
+
+    getPredictionCache(coin) {
+        var csv = fs.readFileSync(`./cryptodash-prediction/predictions-cache/${coin}.csv`, 'utf8')
+        var lines = csv.trim().split(/\r\n|\n/).slice(1);
+        var data = lines.map((line) => line.split(",")).map((lineArr) => [new Date(lineArr[1]).getTime(), Number(lineArr.pop()) /*yhat*/])
+        return data
+    }
+
     determineGranularity(data) {
         let timeInterval = data[1][0] - data[0][0]
 
@@ -52,10 +101,17 @@ class GraphsCache {
         try {
             console.log(`Rewriting ${coin}_${granularity}.json`)
             fs.writeFileSync(`graph_cache/${coin}_${granularity}.json`, JSON.stringify({ data: data, grabbedAllFromServer: grabbedAllFromServer }))
+
+            // Any time we are updating the "all" granularity of a coin, we should also update the prophet model.
+            // This takes 1-5 seconds and we do it in the background here to save some time if asked to fetch it later.
+            if (granularity === "all") {
+                return this.prophetPromiseQueue = this.prophetPromiseQueue.then(() => this.updateProphetModel(coin, data))
+            }
         }
         catch (err) {
             //console.log(err)
         }
+        return Promise.resolve()
     }
 
     tryLoadCacheFile(coin, granularity) {
@@ -80,13 +136,6 @@ class GraphsCache {
 
         console.log(`checking ${coin}_${granularity} cache ${timeStart} -> ${timeEnd}`)
 
-        // Tolerances for how up-to-date the data should be for different granularities
-        let timeTolerance = {
-            "1d": ONE_MIN * 30,
-            "3mo": ONE_HOUR * 12,
-            "all": ONE_DAY * 2,
-        }
-
         if (coinCache.length === 0) {
             console.log(`Cache ${coin}_${granularity} was empty. Needs refresh`)
             return [false, []]
@@ -97,13 +146,13 @@ class GraphsCache {
             return [false, []]
 
         // Check historical data, make sure graph goes back as far as query, or that we have already grabbed the entire graph from server
-        if (timeStart < coinCache[0][0] - timeTolerance[granularity] && !grabbedAllFromServer) {
-            console.log(`Cache ${coin}_${granularity} does not have all historical data. Off by ${((coinCache[0][0] - timeTolerance[granularity]) - timeStart) / 1000 / 60} minutes. timeStart is ${timeStart}. First time in cache is ${coinCache[0][0]}. Needs refresh`)
+        if (timeStart < coinCache[0][0] - granularityTimeTolerances[granularity] && !grabbedAllFromServer) {
+            console.log(`Cache ${coin}_${granularity} does not have all historical data. Off by ${((coinCache[0][0] - granularityTimeTolerances[granularity]) - timeStart) / 1000 / 60} minutes. timeStart is ${timeStart}. First time in cache is ${coinCache[0][0]}. Needs refresh`)
             return [false, []]
         }
 
         // Check recent data, make sure graph is up to date to within an acceptable time tolerance
-        if (timeEnd > coinCache[coinCache.length - 1][0] + timeTolerance[granularity]) {
+        if (timeEnd > coinCache[coinCache.length - 1][0] + granularityTimeTolerances[granularity]) {
             console.log(`Cache ${coin}_${granularity} does not have most recent data. Off by ${timeEnd - coinCache[coinCache.length - 1][0]} Needs refresh`)
             return [false, []]
         }
@@ -136,8 +185,8 @@ class GraphsCache {
             const curDataContained = curSpan[0] >= fillSpan[0] && curSpan[1] <= fillSpan[1]
             const dataOverlaps = fillSpan[0] <= curSpan[1] && fillSpan[1] >= curSpan[0]
             const dataIsClose = (
-                Math.abs(fillSpan[0] - curSpan[1]) < granularityIntervals[granularity]
-                || Math.abs(fillSpan[1] - curSpan[0]) < granularityIntervals[granularity]
+                Math.abs(fillSpan[0] - curSpan[1]) <= granularityIntervals[granularity]
+                || Math.abs(fillSpan[1] - curSpan[0]) <= granularityIntervals[granularity]
             )
 
             if (!curDataContained && (dataOverlaps || dataIsClose)) {
@@ -155,20 +204,58 @@ class GraphsCache {
                 interweaved = interweaved.concat(fillDataCopy, curData)
 
                 let filteredToGranularity = [interweaved[0]]
-                for(let i = 1; i < interweaved.length - 1; i++) {
+                for (let i = 1; i < interweaved.length - 1; i++) {
                     let timeBetween = interweaved[i][0] - filteredToGranularity[filteredToGranularity.length - 1][0]
-                    if(timeBetween >= granularityIntervals[granularity] * 0.95) {
+                    if (timeBetween >= granularityIntervals[granularity] * 0.95) {
                         filteredToGranularity.push(interweaved[i])
                     }
                 }
                 filteredToGranularity.push(interweaved.pop())
 
-                that.saveCacheFile(coin, granularity, filteredToGranularity, fillGrabbedAllFromServer || curGrabbedAllFromServer)
+                return that.saveCacheFile(coin, granularity, filteredToGranularity, fillGrabbedAllFromServer || curGrabbedAllFromServer)
             }
             else {
-                that.saveCacheFile(coin, granularity, fillData, fillGrabbedAllFromServer)
+                return that.saveCacheFile(coin, granularity, fillData, fillGrabbedAllFromServer)
             }
         })
+        return Promise.resolve()
+    }
+
+    fetchChartFromServer(coin, timeStart, timeEnd) {
+        return CoinGeckoClient.coins.fetchMarketChartRange(coin, {
+            from: timeStart / 1000,
+            to: timeEnd / 1000,
+        }).then((res) => {
+            this.fillCache(coin, res.data.prices, timeFrame === "all");
+            return res.data.prices;
+        });
+    }
+
+    getGraphAndPrediction(coin) {
+        let timeStart = Date.now() - timeFrames["1y"]
+        let timeEnd = Date.now()
+
+        console.log(`Checking if prediction already cached...`)
+        let tryGetFromCache = this.checkCache(coin, timeStart, timeEnd)
+
+        // Prediction is presumably cached as well if 1y graph was cached as it is always updated on save
+        if (tryGetFromCache[0]) {
+            console.log(`Succesfully got data from cache for ${coin}`)
+            return Promise.resolve([tryGetFromCache[1], this.getPredictionCache(coin)])
+        }
+        else {
+            let pricesData = []
+            return CoinGeckoClient.coins.fetchMarketChartRange(coin, {
+                from: timeStart / 1000,
+                to: timeEnd / 1000,
+            }).then((res) => {
+                pricesData = res.data.prices
+                // Returns promise to latest prophet prediction background task
+                return this.fillCache(coin, res.data.prices, false);
+            }).then(() => {
+                return [pricesData, this.getPredictionCache(coin)]
+            });
+        }
     }
 
     getGraph(coin, timeFrame) {
@@ -188,7 +275,10 @@ class GraphsCache {
             return CoinGeckoClient.coins.fetchMarketChartRange(coin, {
                 from: timeStart / 1000,
                 to: timeEnd / 1000,
-            }).then((res) => { this.fillCache(coin, res.data.prices, timeFrame === "all"); return res.data.prices });
+            }).then((res) => {
+                this.fillCache(coin, res.data.prices, timeFrame === "all");
+                return res.data.prices;
+            });
         }
     }
 }

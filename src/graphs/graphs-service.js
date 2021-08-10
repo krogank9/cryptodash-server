@@ -11,6 +11,9 @@ const GraphsService = {
     getGraph(coin, timeFrame) {
         return GraphsCache.getGraph(coin, timeFrame)
     },
+    getGraphAndPrediction(coin) {
+        return GraphsCache.getGraphAndPrediction(coin)
+    },
 }
 
 module.exports = GraphsService

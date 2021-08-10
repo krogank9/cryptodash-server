@@ -27,6 +27,7 @@
     "jsonwebtoken": "^8.5.1",
     "morgan": "^1.9.1",
     "set-tz": "^0.2.0",
+    "shelljs": "^0.8.4",
     "xss": "^1.0.6"
   },
   "devDependencies": {
