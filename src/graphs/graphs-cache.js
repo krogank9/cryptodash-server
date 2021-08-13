@@ -250,7 +250,7 @@ class GraphsCache {
                 this.fillCache(coin, res.data.prices, false);
                 return this.updateProphetCache(coin, pricesData)
             }).then((prophetData) => {
-                return [pricesData.filter(d => d[0] >= (Date.now() - timeFrames["1m"])), prophetData]
+                return [pricesData, prophetData]
             });
         }
     }
