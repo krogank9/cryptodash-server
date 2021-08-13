@@ -45,9 +45,21 @@ class GraphsCache {
         this.prophetPromiseQueue = Promise.resolve()
     }
 
-    updateProphetModel(coin, data) {
+    getPredictionCache(coin) {
+        //return []
+        var csv = fs.readFileSync(`./cryptodash-prediction/predictions-cache/${coin}.csv`, 'utf8')
+        console.log(`loaded in js`)
+        var lines = csv.trim().split(/\r\n|\n/).slice(1).map((l) => l.split(",").slice(1));
+        console.log(lines)
+        var data = lines.map((lineArr) => [new Date(Number(lineArr[0]) || lineArr[0]).getTime(), Number(lineArr.pop()) /*yhat*/])
+        console.log(data)
+        return data
+    }
+
+    updateProphetCache(coin, data) {
+        //return Promise.resolve([])
         return new Promise((resolvePromise, rejectPromise) => {
-            data = data.filter(([time, _]) => time >= Date.now() - ONE_YEAR)
+            //data = data.filter(([time, _]) => time >= Date.now() - ONE_YEAR)
             let csv = '"ds","y"\n' + data.map(([unixTimestampMs, val]) => {
                 // Convert date to format prophet likes
                 var d = new Date(unixTimestampMs),
@@ -65,20 +77,15 @@ class GraphsCache {
             }).join("\n") + "\n"
 
             // Run python script to get a 90 day forecast of what will happen next
+            let that = this
             console.log(`Updating prophet model for ${coin}`)
             fs.writeFileSync(`cryptodash-prediction/${coin}.csv`, csv)
-            shell.exec(`(cd ./cryptodash-prediction && python predict.py ${coin}.csv && rm ${coin}.csv)`, (err, stdout, stderr) => {
+            shell.exec(`(cd ./cryptodash-prediction; python predict.py ${coin}.csv; rm ${coin}.csv)`, (err, stdout, stderr) => {
                 console.log(`Finished running prophet prediction for ${coin}`)
-                resolvePromise()
+                let mostRecentRealTime = data.slice(-1)[0][0]
+                resolvePromise(that.getPredictionCache(coin).filter(d => d[0] > mostRecentRealTime))
             })
         })
-    }
-
-    getPredictionCache(coin) {
-        var csv = fs.readFileSync(`./cryptodash-prediction/predictions-cache/${coin}.csv`, 'utf8')
-        var lines = csv.trim().split(/\r\n|\n/).slice(1);
-        var data = lines.map((line) => line.split(",")).map((lineArr) => [new Date(lineArr[1]).getTime(), Number(lineArr.pop()) /*yhat*/])
-        return data
     }
 
     determineGranularity(data) {
@@ -105,7 +112,7 @@ class GraphsCache {
             // Any time we are updating the "all" granularity of a coin, we should also update the prophet model.
             // This takes 1-5 seconds and we do it in the background here to save some time if asked to fetch it later.
             if (granularity === "all") {
-                return this.prophetPromiseQueue = this.prophetPromiseQueue.then(() => this.updateProphetModel(coin, data))
+                //return this.prophetPromiseQueue = this.prophetPromiseQueue.then(() => this.updateProphetCache(coin, data))
             }
         }
         catch (err) {
@@ -221,16 +228,6 @@ class GraphsCache {
         return Promise.resolve()
     }
 
-    fetchChartFromServer(coin, timeStart, timeEnd) {
-        return CoinGeckoClient.coins.fetchMarketChartRange(coin, {
-            from: timeStart / 1000,
-            to: timeEnd / 1000,
-        }).then((res) => {
-            this.fillCache(coin, res.data.prices, timeFrame === "all");
-            return res.data.prices;
-        });
-    }
-
     getGraphAndPrediction(coin) {
         let timeStart = Date.now() - timeFrames["1y"]
         let timeEnd = Date.now()
@@ -239,7 +236,7 @@ class GraphsCache {
         let tryGetFromCache = this.checkCache(coin, timeStart, timeEnd)
 
         // Prediction is presumably cached as well if 1y graph was cached as it is always updated on save
-        if (tryGetFromCache[0]) {
+        if (tryGetFromCache[0] && false) {
             console.log(`Succesfully got data from cache for ${coin}`)
             return Promise.resolve([tryGetFromCache[1], this.getPredictionCache(coin)])
         }
@@ -250,10 +247,10 @@ class GraphsCache {
                 to: timeEnd / 1000,
             }).then((res) => {
                 pricesData = res.data.prices
-                // Returns promise to latest prophet prediction background task
-                return this.fillCache(coin, res.data.prices, false);
-            }).then(() => {
-                return [pricesData, this.getPredictionCache(coin)]
+                this.fillCache(coin, res.data.prices, false);
+                return this.updateProphetCache(coin, pricesData)
+            }).then((prophetData) => {
+                return [pricesData.filter(d => d[0] >= (Date.now() - timeFrames["1m"])), prophetData]
             });
         }
     }
