@@ -25,39 +25,46 @@ http.get({ host: "cointelegraph.com", port: 80, path: '/editors_pick_rss' }, fun
 
 // Market data
 
-let marketDataChunks = ""
+function fetchMarketDataPage(pageNum) {
+    let marketDataChunks = ""
+    
+    return new Promise((resolve, reject) => {
+        http.get({ host: "api.coingecko.com", port: 80, path: `/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=${pageNum}&sparkline=false&price_change_percentage=price_change_percentage` }, function (res) {
+            console.log("Got response: " + res.statusCode);
+
+            res.on('data', function (chunk) {
+                marketDataChunks += chunk
+            });
+            res.on('close', function () {
+                let newMarketData = JSON.parse(marketDataChunks || [])
+                let curMarketData = JSON.parse(fs.readFileSync('../cryptodash-client/static_data/coins_markets_list.json') || "[]").filter(c1 => !newMarketData.find(c2 => c1.symbol === c2.symbol))
+                let combinedMarketData = curMarketData.concat(newMarketData)
+                fs.writeFileSync('../cryptodash-client/static_data/coins_markets_list.json', JSON.stringify(combinedMarketData, null, 2))
+                resolve(true)
+                marketDataReceived = true
+            })
+        }).on('error', function (e) {
+            console.log("Got error: " + e.message);
+            resolve(false)
+        });
+    })
+}
+
 let marketDataReceived = false
 
-http.get({ host: "api.coingecko.com", port: 80, path: '/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=price_change_percentage' }, function (res) {
-    console.log("Got response: " + res.statusCode);
-
-    res.on('data', function (chunk) {
-        marketDataChunks += chunk
-        fs.writeFile("../cryptodash-client/static_data/coins_markets_list.json", marketDataChunks, function (err) {
-            if (err) return console.log(err);
-        });
-    });
-    res.on('close', function () {
-        console.log(`coins market data > "static_data/coins_markets_list.json"`);
-        marketDataReceived = true
-    })
-}).on('error', function (e) {
-    console.log("Got error: " + e.message);
-});
+fetchMarketDataPage(1)
+    .then(() => fetchMarketDataPage(2))
+    .then(() => fetchMarketDataPage(3))
+    .then(() => fetchMarketDataPage(4))
+    .then(() => fetchMarketDataPage(5))
+    .then(() => populateMapAndCoins())
 
 // Coin data
-
-function waitForMarket(cb) {
-    if (marketDataReceived)
-        cb()
-    else
-        setTimeout(function () { waitForMarket(cb) }, 10)
-}
 
 var DefaultCoins = JSON.parse(fs.readFileSync('../cryptodash-client/static_data/default_coins.json'))
 
 function populateMapAndCoins() {
-    let marketData = JSON.parse(marketDataChunks)
+    let marketData = JSON.parse(fs.readFileSync('../cryptodash-client/static_data/coins_markets_list.json') || "[]")
     let coinNameMap = {}
     let coinIdMap = {}
 
@@ -73,25 +80,13 @@ function populateMapAndCoins() {
         coinNameMap[coinData["symbol"]] = coinName
     }
 
-    fs.writeFile("../cryptodash-client/static_data/coin_id_map.json", JSON.stringify(coinIdMap), function (err) {
-        if (err) return console.log(err);
-        console.log(`coins name map > "static_data/coin_id_map.json"`);
-    });
-
-    fs.writeFile("../cryptodash-client/static_data/coin_name_map.json", JSON.stringify(coinNameMap), function (err) {
-        if (err) return console.log(err);
-        console.log(`coins name map > "static_data/coin_name_map.json"`);
-    });
+    fs.writeFileSync("../cryptodash-client/static_data/coin_id_map.json", JSON.stringify(coinIdMap))
+    fs.writeFileSync("../cryptodash-client/static_data/coin_name_map.json", JSON.stringify(coinNameMap))
 
     for (let coin of DefaultCoins) {
         let coinId = coinIdMap[coin]
         GraphsCache.getGraph(coinId, "1d").then(data => {
-            fs.writeFile(`../cryptodash-client/static_data/${coin}_1d.json`, JSON.stringify(data), function (err) {
-                if (err) return console.log(err);
-                console.log(`${coin} graph data > "static_data/${coin}_1d.json"`);
-            });
+            fs.writeFileSync(`../cryptodash-client/static_data/${coin}_1d.json`, JSON.stringify(data))
         })
     }
 }
-
-waitForMarket(populateMapAndCoins)
