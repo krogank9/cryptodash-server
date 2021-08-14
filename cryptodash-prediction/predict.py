@@ -137,7 +137,7 @@ predictor = Predictor( steps=[1, 90], alpha=parameters["predictor"]['sdrc_alpha'
 
 #Should be based on data fluctuation range I think
 resolutions_choices = {
-    10: [10000, 999999999999], # max between 10000 - ∞
+    10: [10000, 999999999999], # max between 10000 - infinity
     1: [1000, 10000],
     0.1: [100, 1000],
     0.01: [0, 10]
