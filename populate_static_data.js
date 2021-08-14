@@ -2,6 +2,15 @@ var http = require('follow-redirects').http;
 var fs = require('fs');
 const GraphsCache = require('./src/graphs/graphs-cache')
 
+function tryReadFileSync(file, defaultValue) {
+    try {
+        return fs.readFileSync(file)
+    }
+    catch(err) {
+        return defaultValue
+    }
+}
+
 // Rss feed
 
 http.get({ host: "cointelegraph.com", port: 80, path: '/editors_pick_rss' }, function (res) {
@@ -37,7 +46,7 @@ function fetchMarketDataPage(pageNum) {
             });
             res.on('close', function () {
                 let newMarketData = JSON.parse(marketDataChunks || [])
-                let curMarketData = JSON.parse(fs.readFileSync('../cryptodash-client/static_data/coins_markets_list.json') || "[]").filter(c1 => !newMarketData.find(c2 => c1.symbol === c2.symbol))
+                let curMarketData = JSON.parse(tryReadFileSync('../cryptodash-client/static_data/coins_markets_list.json', "[]")).filter(c1 => !newMarketData.find(c2 => c1.symbol === c2.symbol))
                 let combinedMarketData = curMarketData.concat(newMarketData)
                 fs.writeFileSync('../cryptodash-client/static_data/coins_markets_list.json', JSON.stringify(combinedMarketData, null, 2))
                 resolve(true)
@@ -64,7 +73,7 @@ fetchMarketDataPage(1)
 var DefaultCoins = JSON.parse(fs.readFileSync('../cryptodash-client/static_data/default_coins.json'))
 
 function populateMapAndCoins() {
-    let marketData = JSON.parse(fs.readFileSync('../cryptodash-client/static_data/coins_markets_list.json') || "[]")
+    let marketData = JSON.parse(tryReadFileSync('../cryptodash-client/static_data/coins_markets_list.json', '[]'))
     let coinNameMap = {}
     let coinIdMap = {}
 
