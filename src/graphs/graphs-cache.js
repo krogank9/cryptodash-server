@@ -78,10 +78,10 @@ class GraphsCache {
 
             // Run python script to get a 90 day forecast of what will happen next
             let that = this
-            console.log(`Updating prophet model for ${coin}`)
+            console.log(`Updating HTM prediction for ${coin}`)
             fs.writeFileSync(`cryptodash-prediction/${coin}.csv`, csv)
             shell.exec(`(cd ./cryptodash-prediction; python predict.py ${coin}.csv; rm ${coin}.csv)`, (err, stdout, stderr) => {
-                console.log(`Finished running prophet prediction for ${coin}`)
+                console.log(`Finished running HTM prediction for ${coin}`)
                 let mostRecentRealTime = data.slice(-1)[0][0]
                 resolvePromise(that.getPredictionCache(coin).filter(d => d[0] > mostRecentRealTime))
             })
