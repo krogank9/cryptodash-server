@@ -42,10 +42,10 @@ const granularityTimeTolerances = {
 class GraphsCache {
     constructor() {
         // Only one prophet model at a time so we don't crash our server...
-        this.prophetPromiseQueue = Promise.resolve()
+        this.predictionQueue = Promise.resolve()
     }
 
-    getPredictionCache(coin) {
+    getPredictionCacheCSV(coin) {
         //return []
         var csv = fs.readFileSync(`./cryptodash-prediction/predictions-cache/${coin}.csv`, 'utf8')
         console.log(`loaded in js`)
@@ -56,7 +56,7 @@ class GraphsCache {
         return data
     }
 
-    updateProphetCache(coin, data) {
+    runPrediction(coin, data) {
         //return Promise.resolve([])
         return new Promise((resolvePromise, rejectPromise) => {
             //data = data.filter(([time, _]) => time >= Date.now() - ONE_YEAR)
@@ -83,7 +83,7 @@ class GraphsCache {
             shell.exec(`(cd ./cryptodash-prediction; python predict.py ${coin}.csv; rm ${coin}.csv)`, (err, stdout, stderr) => {
                 console.log(`Finished running HTM prediction for ${coin}`)
                 let mostRecentRealTime = data.slice(-1)[0][0]
-                resolvePromise(that.getPredictionCache(coin).filter(d => d[0] > mostRecentRealTime))
+                resolvePromise(that.getPredictionCacheCSV(coin).filter(d => d[0] > mostRecentRealTime))
             })
         })
     }
@@ -112,7 +112,7 @@ class GraphsCache {
             // Any time we are updating the "all" granularity of a coin, we should also update the prophet model.
             // This takes 1-5 seconds and we do it in the background here to save some time if asked to fetch it later.
             if (granularity === "all") {
-                //return this.prophetPromiseQueue = this.prophetPromiseQueue.then(() => this.updateProphetCache(coin, data))
+                //return this.predictionQueue = this.predictionQueue.then(() => this.runPrediction(coin, data))
             }
         }
         catch (err) {
@@ -228,31 +228,53 @@ class GraphsCache {
         return Promise.resolve()
     }
 
+    savePredictionCacheJSON(coin, data) {
+        fs.writeFileSync(`./cryptodash-prediction/predictions-cache/${coin}.json`, JSON.stringify(data))
+    }
+
+    getPredictionCacheJSON(coin) {
+        try {
+            return JSON.parse(fs.readFileSync(`./cryptodash-prediction/predictions-cache/${coin}.json`, 'utf8'))
+        }
+        catch(err) {
+            return [[], []]
+        }
+    }
+
     getGraphAndPrediction(coin) {
-        let timeStart = Date.now() - timeFrames["1y"]
-        let timeEnd = Date.now()
-
-        console.log(`Checking if prediction already cached...`)
-        let tryGetFromCache = this.checkCache(coin, timeStart, timeEnd)
-
-        // Prediction is presumably cached as well if 1y graph was cached as it is always updated on save
-        if (tryGetFromCache[0] && false) {
-            console.log(`Succesfully got data from cache for ${coin}`)
-            return Promise.resolve([tryGetFromCache[1], this.getPredictionCache(coin)])
-        }
-        else {
-            let pricesData = []
-            return CoinGeckoClient.coins.fetchMarketChartRange(coin, {
-                from: timeStart / 1000,
-                to: timeEnd / 1000,
-            }).then((res) => {
-                pricesData = res.data.prices
-                this.fillCache(coin, res.data.prices, false);
-                return this.updateProphetCache(coin, pricesData)
-            }).then((prophetData) => {
-                return [pricesData, prophetData]
-            });
-        }
+        let that = this
+        return this.predictionQueue = this.predictionQueue.then(() => {
+            return new Promise((resolvePromise, rejectPromise) => {
+                let timeStart = Date.now() - timeFrames["1y"]
+                let timeEnd = Date.now()
+        
+                console.log(`Checking if prediction already cached...`)
+                let tryGetFromCache = that.getPredictionCacheJSON(coin)
+                let lastRealData = tryGetFromCache[0].slice().pop()
+                console.log("lastRealData")
+                console.log(lastRealData)
+    
+                // Only run 1 prediction cache for a coin per hour.
+                if (lastRealData && Date.now() - lastRealData[0] < ONE_HOUR*24) {
+                    console.log(`Succesfully got data from prediction cache for ${coin}, serving from cache`)
+                    resolvePromise(tryGetFromCache)
+                }
+                else {
+                    let pricesData = []
+                    CoinGeckoClient.coins.fetchMarketChartRange(coin, {
+                        from: timeStart / 1000,
+                        to: timeEnd / 1000,
+                    }).then((res) => {
+                        pricesData = res.data.prices
+                        this.fillCache(coin, res.data.prices, false);
+                        return this.runPrediction(coin, pricesData)
+                    }).then((prophetData) => {
+                        that.savePredictionCacheJSON(coin, [pricesData, prophetData])
+                        resolvePromise([pricesData, prophetData])
+                    });
+                }
+            })
+        })
     }
 
     getGraph(coin, timeFrame) {

@@ -28,6 +28,8 @@ yarn-error.log*
 
 # cache
 /graph_cache/*.json
+/cryptodash-prediction/predictions-cache/*.json
+/cryptodash-prediction/predictions-cache/*.csv
 
 # pm2
 ecosystem.config.js
