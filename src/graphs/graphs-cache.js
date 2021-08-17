@@ -108,12 +108,6 @@ class GraphsCache {
         try {
             console.log(`Rewriting ${coin}_${granularity}.json`)
             fs.writeFileSync(`graph_cache/${coin}_${granularity}.json`, JSON.stringify({ data: data, grabbedAllFromServer: grabbedAllFromServer }))
-
-            // Any time we are updating the "all" granularity of a coin, we should also update the prophet model.
-            // This takes 1-5 seconds and we do it in the background here to save some time if asked to fetch it later.
-            if (granularity === "all") {
-                //return this.predictionQueue = this.predictionQueue.then(() => this.runPrediction(coin, data))
-            }
         }
         catch (err) {
             //console.log(err)
@@ -245,8 +239,9 @@ class GraphsCache {
         let that = this
         return this.predictionQueue = this.predictionQueue.then(() => {
             return new Promise((resolvePromise, rejectPromise) => {
-                let timeStart = Date.now() - timeFrames["1y"]
+                let timeStart = 0//Date.now() - timeFrames["1y"]
                 let timeEnd = Date.now()
+                let oneYearAgo = Date.now() - ONE_YEAR
         
                 console.log(`Checking if prediction already cached...`)
                 let tryGetFromCache = that.getPredictionCacheJSON(coin)
@@ -266,8 +261,9 @@ class GraphsCache {
                         to: timeEnd / 1000,
                     }).then((res) => {
                         pricesData = res.data.prices
-                        this.fillCache(coin, res.data.prices, false);
-                        return this.runPrediction(coin, pricesData)
+                        this.fillCache(coin, res.data.prices, timeStart === 0);
+                        // Only send last year of data to neural net to minimize processing
+                        return this.runPrediction(coin, pricesData.filter(d => d[0] >= oneYearAgo))
                     }).then((prophetData) => {
                         that.savePredictionCacheJSON(coin, [pricesData, prophetData])
                         resolvePromise([pricesData, prophetData])
