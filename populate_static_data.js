@@ -89,8 +89,8 @@ function populateMapAndCoins() {
         coinNameMap[coinData["symbol"]] = coinName
     }
 
-    fs.writeFileSync("../cryptodash-client/static_data/coin_id_map.json", JSON.stringify(coinIdMap))
-    fs.writeFileSync("../cryptodash-client/static_data/coin_name_map.json", JSON.stringify(coinNameMap))
+    //fs.writeFileSync("../cryptodash-client/static_data/coin_id_map.json", JSON.stringify(coinIdMap))
+    //fs.writeFileSync("../cryptodash-client/static_data/coin_name_map.json", JSON.stringify(coinNameMap))
 
     for (let coin of DefaultCoins) {
         let coinId = coinIdMap[coin]
