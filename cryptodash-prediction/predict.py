@@ -215,6 +215,8 @@ for n_steps, pred_list in predictions.items():
       pred_list.insert(0, float('nan'))
       pred_list.pop()
 
+"""
+
 # Calculate the predictive accuracy, Root-Mean-Squared
 accuracy         = {1: 0, 90: 0}
 accuracy_samples = {1: 0, 90: 0}
@@ -226,13 +228,13 @@ for idx, inp in enumerate(inputs):
       accuracy[n] += (inp - val) ** 2
       accuracy_samples[n] += 1
 for n in sorted(predictions):
-  accuracy[n] = (accuracy[n] / accuracy_samples[n]) ** .5
+  accuracy[n] = (accuracy[n] / accuracy_samples[n]) ** .5 # this line was causing it to crash due to 0 div, dunno what's going on, don't need it commented it out
   print("Predictive Error (RMS)", n, "steps ahead:", accuracy[n])
 
 # Show info about the anomaly (mean & std)
 print("Anomaly Mean", np.mean(anomaly))
 print("Anomaly Std ", np.std(anomaly))
-
+"""
 #--------------------------------------------------------------------------------------------------
 
 
