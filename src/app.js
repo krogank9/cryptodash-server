@@ -25,7 +25,8 @@ app.use(helmet())
 app.get('/api/graphs/:graph_id', (req, res, next) => {
 	let coinId = req.params.graph_id.split("_").slice(0, -1).join("_")
 	let timeFrame = req.params.graph_id.split("_").pop()
-	GraphsService.getGraph(coinId, timeFrame)
+	let now = req.query.now
+	GraphsService.getGraph(coinId, timeFrame, now)
 		.then(graph => {
 			if (!graph) {
 				return res.status(404).json({

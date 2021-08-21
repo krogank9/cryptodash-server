@@ -285,9 +285,9 @@ class GraphsCache {
         }
     }
 
-    getGraph(coin, timeFrame) {
+    getGraph(coin, timeFrame, now) {
         let timeStart = 0
-        let timeEnd = Date.now()
+        let timeEnd = now || Date.now()
         if (timeFrame !== "all")
             timeStart = timeEnd - timeFrames[timeFrame]
 
