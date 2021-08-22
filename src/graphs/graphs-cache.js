@@ -64,7 +64,7 @@ class GraphsCache {
                     }).then((res) => {
                         pricesData = res.data.prices
                         this.fillCache(coin, res.data.prices, true);
-                        // Only send last year of data to neural net to minimize processing
+                        // Only send last 2 years of data to neural net to minimize processing
                         return this.runPrediction(coin, pricesData.filter(d => d[0] >= TWO_YEARS_AGO))
                     }).then((prophetData) => {
                         // Prevent any further promise chaining on this coin
