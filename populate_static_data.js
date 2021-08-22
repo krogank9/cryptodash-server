@@ -94,8 +94,9 @@ function populateMapAndCoins() {
 
     for (let coin of DefaultCoins) {
         let coinId = coinIdMap[coin]
-        GraphsCache.getGraph(coinId, "1d").then(data => {
-            fs.writeFileSync(`../cryptodash-client/static_data/${coin}_1d.json`, JSON.stringify(data))
-        })
+        // Make sure every coin in DefaultCoins has an updated cache
+        // The cache will then be used in getServerSideProps on the client
+        GraphsCache.getGraph(coinId, "1d")
+        GraphsCache.getGraph(coinId, "1w")
     }
 }
