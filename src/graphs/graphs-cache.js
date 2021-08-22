@@ -53,6 +53,7 @@ class GraphsCache {
         }
         else {
             const ONE_YEAR_AGO = Date.now() - ONE_YEAR
+            const TWO_YEARS_AGO = Date.now() - ONE_YEAR
 
             return this.predictionQueueByCoin[coin] = this.predictionQueue = this.predictionQueue.then(() => {
                 return new Promise((resolvePromise, rejectPromise) => {
@@ -64,7 +65,7 @@ class GraphsCache {
                         pricesData = res.data.prices
                         this.fillCache(coin, res.data.prices, true);
                         // Only send last year of data to neural net to minimize processing
-                        return this.runPrediction(coin, pricesData.filter(d => d[0] >= ONE_YEAR_AGO))
+                        return this.runPrediction(coin, pricesData.filter(d => d[0] >= TWO_YEARS_AGO))
                     }).then((prophetData) => {
                         // Prevent any further promise chaining on this coin
                         delete this.predictionQueueByCoin[coin]
