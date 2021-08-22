@@ -53,7 +53,7 @@ class GraphsCache {
         }
         else {
             const ONE_YEAR_AGO = Date.now() - ONE_YEAR
-            const TWO_YEARS_AGO = Date.now() - ONE_YEAR
+            const TWO_YEARS_AGO = Date.now() - ONE_YEAR * 2
 
             return this.predictionQueueByCoin[coin] = this.predictionQueue = this.predictionQueue.then(() => {
                 return new Promise((resolvePromise, rejectPromise) => {
