@@ -4,11 +4,13 @@ const morgan = require('morgan')
 const cors = require('cors')
 const helmet = require('helmet')
 const { NODE_ENV, CLIENT_ORIGIN } = require('./config')
-const GraphsService = require('./graphs/graphs-service')
 
 const app = express()
 
 const graphsRouter = require('./graphs/graphs-router')
+const predictionsRouter = require('./graphs/predictions-router')
+const usersRouter = require('./users/users-router')
+const authRouter = require('./auth/auth-router')
 
 app.use(
 	cors({
@@ -19,36 +21,10 @@ app.use(
 app.use(morgan((NODE_ENV === 'production') ? 'common' : 'common'))
 app.use(helmet())
 
-//app.use('/api/graphs', graphsRouter)
-//app.use('/api/predictions', graphsRouter)
-
-app.get('/api/graphs/:graph_id', (req, res, next) => {
-	let coinId = req.params.graph_id.split("_").slice(0, -1).join("_")
-	let timeFrame = req.params.graph_id.split("_").pop()
-	let now = req.query.now
-	GraphsService.getGraph(coinId, timeFrame, now)
-		.then(graph => {
-			if (!graph) {
-				return res.status(404).json({
-					error: { message: `Could not fetch graph` }
-				})
-			}
-			res.json(graph)
-		})
-})
-
-app.get('/api/predictions/:coin', (req, res, next) => {
-	let coinId = req.params.coin
-	GraphsService.getGraphAndPrediction(coinId)
-		.then(prediction => {
-			if (!prediction) {
-				return res.status(404).json({
-					error: { message: `Could not fetch graph` }
-				})
-			}
-			res.json(prediction)
-		})
-})
+app.use('/api/graphs', graphsRouter)
+app.use('/api/predictions', predictionsRouter)
+app.use('/api/users', usersRouter)
+app.use('/api/auth', authRouter)
 
 app.get('/', (req, res) => {
 	res.send('Hello, world!')

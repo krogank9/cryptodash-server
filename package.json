@@ -8,7 +8,11 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "start-dev": "cross-env NODE_ENV=development nodemon src/server.js",
-    "start-prod": "cross-env NODE_ENV=production node src/server.js"
+    "start-prod": "cross-env NODE_ENV=production node src/server.js",
+    "migrate": "postgrator --config postgrator-config.js",
+    "migrate:test": "env NODE_ENV=test npm run migrate",
+    "migrate:production_needcommands": "env DATABASE_URL=postgres://localhost",
+    "migrate:production": "npm run migrate"
   },
   "repository": {
     "type": "git",
@@ -17,6 +21,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "coingecko-api": "^1.0.10",
     "cors": "^2.8.5",
     "cross-env": "^7.0.3",
@@ -25,15 +30,18 @@
     "follow-redirects": "^1.14.1",
     "helmet": "^3.21.2",
     "jsonwebtoken": "^8.5.1",
+    "knex": "^0.95.10",
     "morgan": "^1.9.1",
+    "pg": "^8.7.1",
     "set-tz": "^0.2.0",
     "shelljs": "^0.8.4",
-    "xss": "^1.0.6"
+    "xss": "^1.0.9"
   },
   "devDependencies": {
     "chai": "^4.2.0",
     "mocha": "^6.2.0",
     "nodemon": "^1.19.2",
+    "postgrator-cli": "^4.0.0",
     "supertest": "^4.0.2"
   },
   "bugs": {

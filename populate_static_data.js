@@ -96,7 +96,9 @@ function populateMapAndCoins() {
         let coinId = coinIdMap[coin]
         // Make sure every coin in DefaultCoins has an updated cache
         // The cache will then be used in getServerSideProps on the client
-        GraphsCache.getGraph(coinId, "1d")
-        GraphsCache.getGraph(coinId, "1w")
+        GraphsCache.getGraph(coinId, "1d").then(data => {
+            // Should already be filled by previous but just in case:
+            GraphsCache.getGraph(coinId, "1w")
+        })
     }
 }
