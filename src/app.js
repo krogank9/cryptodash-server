@@ -11,6 +11,7 @@ const graphsRouter = require('./graphs/graphs-router')
 const predictionsRouter = require('./graphs/predictions-router')
 const usersRouter = require('./users/users-router')
 const authRouter = require('./auth/auth-router')
+const walletsRouter = require('./wallets/wallets-router')
 
 app.use(
 	cors({
@@ -25,6 +26,7 @@ app.use('/api/graphs', graphsRouter)
 app.use('/api/predictions', predictionsRouter)
 app.use('/api/users', usersRouter)
 app.use('/api/auth', authRouter)
+app.use('/api/wallets', walletsRouter)
 
 app.get('/', (req, res) => {
 	res.send('Hello, world!')

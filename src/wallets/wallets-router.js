@@ -1,33 +1,43 @@
 const path = require('path')
 const express = require('express')
-const GraphsService = require('./graphs-service')
+const xss = require('xss')
+const WalletsService = require('./wallets-service')
+const UsersRouter = require('../users/users-router')
+const { requireAuth } = require('../middleware/jwt-auth')
 
-const graphsRouter = express.Router()
+const walletsRouter = express.Router()
 const jsonParser = express.json()
 
-graphsRouter.route('/:graph_id')
-    .all((req, res, next) => {
-        let coinId = req.params.graph_id.split("_").slice(0, -1).join("_")
-        let timeFrame = req.params.graph_id.split("_").pop()
-        let now = req.query.now
-        GraphsService.getGraph(
-            coinId,
-            timeFrame,
-            now
-        )
-            .then(graph => {
-                if (!graph) {
-                    return res.status(404).json({
-                        error: { message: `Could not fetch graph` }
-                    })
-                }
-                res.graph = graph // save the board for the next middleware
-                next() // don't forget to call next so the next middleware happens!
+const serializeWallet = (wallet) => ({
+    coin: wallet.coin,
+    amount: wallet.amount
+})
+
+walletsRouter.route('/')
+    .get(requireAuth, (req, res, next) => {
+        const knexInstance = req.app.get('db')
+        WalletsService.getWalletsForUser(knexInstance, req.user.id)
+            .then(wallets => {
+                res.json((wallets || []).map(serializeWallet))
             })
             .catch(next)
     })
-    .get((req, res, next) => {
-        res.json(res.graph)
+    .post([requireAuth, jsonParser], (req, res, next) => {
+        const wallets = req.body
+        const knexInstance = req.app.get('db')
+        WalletsService.setWalletsForUser(knexInstance, req.user.id, wallets || [])
+            .then(() => {
+                res.status(201).json((wallets || []).map(serializeWallet))
+            })
+            .catch(next)
+    })
+    .delete(requireAuth, (req, res, next) => {
+        const knexInstance = req.app.get('db')
+        WalletsService.deleteAllWalletsForUser(knexInstance, req.user.id)
+            .then(() => {
+                res.status(201).json([])
+            })
+            .catch(next)
     })
 
-module.exports = graphsRouter
+module.exports = walletsRouter
