@@ -5,6 +5,9 @@ const cors = require('cors')
 const helmet = require('helmet')
 const { NODE_ENV, CLIENT_ORIGIN } = require('./config')
 
+var xml2js = require('xml2js')
+var fs = require('fs')
+
 const app = express()
 
 const graphsRouter = require('./graphs/graphs-router')
@@ -12,6 +15,7 @@ const predictionsRouter = require('./graphs/predictions-router')
 const usersRouter = require('./users/users-router')
 const authRouter = require('./auth/auth-router')
 const walletsRouter = require('./wallets/wallets-router')
+
 
 app.use(
 	cors({
@@ -30,6 +34,19 @@ app.use('/api/wallets', walletsRouter)
 
 app.get('/', (req, res) => {
 	res.send('Hello, world!')
+})
+
+app.get('/api/rss', async (req, res) => {
+	var parser = new xml2js.Parser()
+	const rssJson = await parser.parseStringPromise(fs.readFileSync('static_data/crypto_rss.xml', 'utf8'))
+	res.json(rssJson)
+})
+
+app.get('/api/market_data', (req, res) => {
+	const marketData = JSON.parse(fs.readFileSync('static_data/coins_markets_list.json', 'utf8'))
+	console.log("returnin marketData")
+	console.log(marketData)
+	res.status(200).json(marketData)
 })
 
 app.use(function errorHandler(error, req, res, next) {

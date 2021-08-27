@@ -20,7 +20,7 @@ http.get({ host: "cointelegraph.com", port: 80, path: '/editors_pick_rss' }, fun
 
     res.on('data', function (chunk) {
         allChunks += chunk
-        fs.writeFile("../cryptodash-client/static_data/crypto_rss.xml", allChunks, function (err) {
+        fs.writeFile("./static_data/crypto_rss.xml", allChunks, function (err) {
             if (err) return console.log(err);
         });
     });
@@ -46,9 +46,9 @@ function fetchMarketDataPage(pageNum) {
             });
             res.on('close', function () {
                 let newMarketData = JSON.parse(marketDataChunks || [])
-                let curMarketData = JSON.parse(tryReadFileSync('../cryptodash-client/static_data/coins_markets_list.json', "[]")).filter(c1 => !newMarketData.find(c2 => c1.symbol === c2.symbol))
+                let curMarketData = JSON.parse(tryReadFileSync('./static_data/coins_markets_list.json', "[]")).filter(c1 => !newMarketData.find(c2 => c1.symbol === c2.symbol))
                 let combinedMarketData = curMarketData.concat(newMarketData)
-                fs.writeFileSync('../cryptodash-client/static_data/coins_markets_list.json', JSON.stringify(combinedMarketData, null, 2))
+                fs.writeFileSync('./static_data/coins_markets_list.json', JSON.stringify(combinedMarketData, null, 2))
                 resolve(true)
                 marketDataReceived = true
             })
@@ -70,10 +70,10 @@ fetchMarketDataPage(1)
 
 // Coin data
 
-var DefaultCoins = JSON.parse(fs.readFileSync('../cryptodash-client/static_data/default_coins.json'))
+var DefaultCoins = JSON.parse(fs.readFileSync('./static_data/default_coins.json'))
 
 function populateMapAndCoins() {
-    let marketData = JSON.parse(tryReadFileSync('../cryptodash-client/static_data/coins_markets_list.json', '[]'))
+    let marketData = JSON.parse(tryReadFileSync('./static_data/coins_markets_list.json', '[]'))
     let coinNameMap = {}
     let coinIdMap = {}
 
@@ -89,8 +89,8 @@ function populateMapAndCoins() {
         coinNameMap[coinData["symbol"]] = coinName
     }
 
-    //fs.writeFileSync("../cryptodash-client/static_data/coin_id_map.json", JSON.stringify(coinIdMap))
-    //fs.writeFileSync("../cryptodash-client/static_data/coin_name_map.json", JSON.stringify(coinNameMap))
+    //fs.writeFileSync("./static_data/coin_id_map.json", JSON.stringify(coinIdMap))
+    //fs.writeFileSync("./static_data/coin_name_map.json", JSON.stringify(coinNameMap))
 
     for (let coin of DefaultCoins) {
         let coinId = coinIdMap[coin]

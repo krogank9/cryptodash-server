@@ -34,3 +34,6 @@ yarn-error.log*
 # pm2
 ecosystem.config.js
 *.csv
+
+/static_data/crypto_rss.xml
+/static_data/coins_markets_list.json
