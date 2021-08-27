@@ -44,8 +44,6 @@ app.get('/api/rss', async (req, res) => {
 
 app.get('/api/market_data', (req, res) => {
 	const marketData = JSON.parse(fs.readFileSync('static_data/coins_markets_list.json', 'utf8'))
-	console.log("returnin marketData")
-	console.log(marketData)
 	res.status(200).json(marketData)
 })
 
