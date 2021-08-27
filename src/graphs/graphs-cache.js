@@ -266,9 +266,7 @@ class GraphsCache {
         }
     }
 
-
-
-    getGraphAndPrediction(coin, returnImmediately = false) {
+    getGraphAndPrediction(coin) {
         console.log(`Checking if ${coin} prediction already cached...`)
         let tryGetFromCache = this.getPredictionCacheJSON(coin)
         let lastRealData = tryGetFromCache[0].slice().pop()
