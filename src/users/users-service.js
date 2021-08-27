@@ -19,6 +19,18 @@ const UsersService = {
       .returning('*')
       .then(([user]) => user)
   },
+  updateProfilePicture(db, userId, newProfilePic) {
+    console.log('updating profile picture')
+    console.log(newProfilePic)
+    return db('users')
+            .where({ id: userId })
+            .update({profile_picture: newProfilePic})
+  },
+  deleteUser(db, userId) {
+    return db('users')
+            .where({ id: userId })
+            .delete()
+  },
   // Perform validation on username to allow only certain characters/combos
   validateUsername(username) {
     const lettersNumbersUnderscore = /^\w+$/;
