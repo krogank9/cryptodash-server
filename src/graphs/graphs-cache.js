@@ -44,9 +44,17 @@ class GraphsCache {
         // Only one prophet model at a time so we don't crash our server...
         this.predictionQueue = Promise.resolve()
         this.predictionQueueByCoin = {}
+        this.lastPromiseTime = 0
     }
 
     addToPredictionQueue(coin) {
+        // Timeout protection -- For if promise doesn't resolve, should find a better solution later but this should work:
+        if(Date.now() - this.lastPromiseTime > ONE_MIN * 2)
+        {
+            this.predictionQueue = Promise.resolve()
+        }
+        this.lastPromiseTime = Date.now()
+
         if (this.predictionQueueByCoin[coin]) {
             // This means prediction is already running or has already been queued to run. Just return same promise to that prediciton if still waiting.
             return this.predictionQueueByCoin[coin]
