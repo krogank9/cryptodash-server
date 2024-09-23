@@ -68,7 +68,7 @@ class GraphsCache {
                     coinGeckoClient.coinIdMarketChartRange({
                         id: coin,
                         vs_currency: "usd",
-                        from: Date.now() - 31_104_000, // New coingecko api limits to 365 days of data.
+                        from: Date.now() - 31104000, // New coingecko api limits to 365 days of data.
                         to: Date.now() / 1000,
                     }).then((res) => {
                         pricesData = res.prices
@@ -310,7 +310,7 @@ class GraphsCache {
             return Promise.resolve(tryGetFromCache[1])
         }
         else {
-            timeStart = Math.max(timeStart, timeEnd - 31_104_000); // New coingecko api limits to 365 days of data.
+            timeStart = Math.max(timeStart, timeEnd - 31104000); // New coingecko api limits to 365 days of data.
             return coinGeckoClient.coinIdMarketChartRange({
                 id: coin,
                 vs_currency: "usd",
