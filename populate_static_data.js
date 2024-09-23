@@ -13,7 +13,7 @@ function tryReadFileSync(file, defaultValue) {
 
 // Rss feed
 
-http.get({ host: "cointelegraph.com", port: 80, path: '/editors_pick_rss' }, function (res) {
+http.get({ host: "www.coindesk.com", port: 80, path: '/arc/outboundfeeds/rss' }, function (res) {
     console.log("Got response: " + res.statusCode);
 
     let allChunks = ""
@@ -38,8 +38,9 @@ function fetchMarketDataPage(pageNum) {
     let marketDataChunks = ""
     
     return new Promise((resolve, reject) => {
-        http.get({ host: "api.coingecko.com", port: 80, path: `/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=${pageNum}&sparkline=false&price_change_percentage=price_change_percentage` }, function (res) {
-            console.log("Got response: " + res.statusCode);
+        const API_KEY = "YOUR_API_KEY"
+        http.get({ host: "api.coingecko.com", port: 80, path: `/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=${pageNum}&sparkline=false&price_change_percentage=price_change_percentage&x_cg_demo_api_key=${API_KEY}` }, function (res) {
+            console.log("fetchMarketDataPage() Got response from coingecko: " + res.statusCode);
 
             res.on('data', function (chunk) {
                 marketDataChunks += chunk

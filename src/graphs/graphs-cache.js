@@ -1,5 +1,5 @@
-const CoinGecko = require('coingecko-api');
-const CoinGeckoClient = new CoinGecko();
+const {CoinGeckoClient} = require('coingecko-api-v3');
+const coinGeckoClient = new CoinGeckoClient();
 var fs = require('fs');
 var shell = require('shelljs');
 
@@ -65,12 +65,14 @@ class GraphsCache {
             return this.predictionQueueByCoin[coin] = this.predictionQueue = this.predictionQueue.then(() => {
                 return new Promise((resolvePromise, rejectPromise) => {
                     let pricesData = []
-                    CoinGeckoClient.coins.fetchMarketChartRange(coin, {
-                        from: 0,
+                    coinGeckoClient.coinIdMarketChartRange({
+                        id: coin,
+                        vs_currency: "usd",
+                        from: Date.now() - 31_104_000, // New coingecko api limits to 365 days of data.
                         to: Date.now() / 1000,
                     }).then((res) => {
-                        pricesData = res.data.prices
-                        this.fillCache(coin, res.data.prices, true);
+                        pricesData = res.prices
+                        this.fillCache(coin, res.prices, true);
                         // Only send last 2 years of data to neural net to minimize processing
                         return this.runPrediction(coin, pricesData.filter(d => d[0] >= now - ONE_YEAR))
                     }).then((prophetData) => {
@@ -78,6 +80,8 @@ class GraphsCache {
                         delete this.predictionQueueByCoin[coin]
                         this.savePredictionCacheJSON(coin, [pricesData, prophetData])
                         resolvePromise([pricesData, prophetData])
+                    }).catch((err) => {
+                        console.log("error for coin "+ coin)
                     });
                 })
             })
@@ -186,10 +190,11 @@ class GraphsCache {
             return [false, []]
 
         // Check historical data, make sure graph goes back as far as query, or that we have already grabbed the entire graph from server
-        if (timeStart < coinCache[0][0] - granularityTimeTolerances[granularity] && !grabbedAllFromServer) {
-            console.log(`Cache ${coin}_${granularity} does not have all historical data. Off by ${((coinCache[0][0] - granularityTimeTolerances[granularity]) - timeStart) / 1000 / 60} minutes. timeStart is ${timeStart}. First time in cache is ${coinCache[0][0]}. Needs refresh`)
-            return [false, []]
-        }
+        // Commenting this out, no longer lets us get data past 365 days on coingecko
+        // if (timeStart < coinCache[0][0] - granularityTimeTolerances[granularity] && !grabbedAllFromServer) {
+        //     console.log(`Cache ${coin}_${granularity} does not have all historical data. Off by ${((coinCache[0][0] - granularityTimeTolerances[granularity]) - timeStart) / 1000 / 60} minutes. timeStart is ${timeStart}. First time in cache is ${coinCache[0][0]}. Needs refresh`)
+        //     return [false, []]
+        // }
 
         // Check recent data, make sure graph is up to date to within an acceptable time tolerance
         if (timeEnd > coinCache[coinCache.length - 1][0] + granularityTimeTolerances[granularity]) {
@@ -305,12 +310,19 @@ class GraphsCache {
             return Promise.resolve(tryGetFromCache[1])
         }
         else {
-            return CoinGeckoClient.coins.fetchMarketChartRange(coin, {
+            timeStart = Math.max(timeStart, timeEnd - 31_104_000); // New coingecko api limits to 365 days of data.
+            return coinGeckoClient.coinIdMarketChartRange({
+                id: coin,
+                vs_currency: "usd",
                 from: timeStart / 1000,
                 to: timeEnd / 1000,
             }).then((res) => {
-                this.fillCache(coin, res.data.prices, timeFrame === "all");
-                return res.data.prices;
+                //console.log("getGraph res:")
+                //console.log(res)
+                this.fillCache(coin, res.prices, timeFrame === "all");
+                return res.prices;
+            }).catch((err) => {
+                console.log("error for coin "+ coin)
             });
         }
     }
