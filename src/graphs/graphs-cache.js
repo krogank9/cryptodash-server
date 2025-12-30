@@ -68,12 +68,26 @@ class GraphsCache {
                 return new Promise((resolvePromise, rejectPromise) => {
                     let pricesData = []
                     plog(`Fetching price data from CoinGecko for ${coin}...`)
-                    coinGeckoClient.coinIdMarketChartRange({
+                    
+                    // Add timeout to prevent hanging forever
+                    const timeoutMs = 30000
+                    let timeoutId
+                    const timeoutPromise = new Promise((_, reject) => {
+                        timeoutId = setTimeout(() => {
+                            plog(`CoinGecko API timeout after ${timeoutMs/1000}s for ${coin}`)
+                            reject(new Error(`CoinGecko timeout after ${timeoutMs/1000}s`))
+                        }, timeoutMs)
+                    })
+                    
+                    const apiPromise = coinGeckoClient.coinIdMarketChartRange({
                         id: coin,
                         vs_currency: "usd",
                         from: (Date.now() - 31104000) / 1000, // New coingecko api limits to 365 days of data.
                         to: Date.now() / 1000,
-                    }).then((res) => {
+                    })
+                    
+                    Promise.race([apiPromise, timeoutPromise]).then((res) => {
+                        clearTimeout(timeoutId)
                         plog(`Got ${res.prices ? res.prices.length : 0} price points from CoinGecko for ${coin}`)
                         pricesData = res.prices
                         this.fillCache(coin, res.prices, true);
@@ -86,6 +100,7 @@ class GraphsCache {
                         plog(`Prediction complete for ${coin}: ${prophetData.length} prediction points`)
                         resolvePromise([pricesData, prophetData])
                     }).catch((err) => {
+                        clearTimeout(timeoutId) // Clear timeout on error too
                         plog(`Error fetching/predicting for ${coin}: ${err.message || err}`)
                         delete this.predictionQueueByCoin[coin]
                         resolvePromise([[], []]) // Return empty so request doesn't hang
