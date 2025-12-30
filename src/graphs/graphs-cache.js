@@ -79,10 +79,12 @@ class GraphsCache {
                         }, timeoutMs)
                     })
                     
+                    // Request 60 days of data (enough for prediction, faster API response)
+                    const sixtyDaysMs = 60 * 24 * 60 * 60 * 1000
                     const apiPromise = coinGeckoClient.coinIdMarketChartRange({
                         id: coin,
                         vs_currency: "usd",
-                        from: (Date.now() - 31104000) / 1000, // New coingecko api limits to 365 days of data.
+                        from: (Date.now() - sixtyDaysMs) / 1000,
                         to: Date.now() / 1000,
                     })
                     
@@ -91,8 +93,8 @@ class GraphsCache {
                         plog(`Got ${res.prices ? res.prices.length : 0} price points from CoinGecko for ${coin}`)
                         pricesData = res.prices
                         this.fillCache(coin, res.prices, true);
-                        // Only send last year of data to neural net to minimize processing
-                        return this.runPrediction(coin, pricesData.filter(d => d[0] >= now - ONE_YEAR_ALMOST))
+                        // Send all fetched data to neural net (already limited to 60 days)
+                        return this.runPrediction(coin, pricesData)
                     }).then((prophetData) => {
                         // Prevent any further promise chaining on this coin
                         delete this.predictionQueueByCoin[coin]
