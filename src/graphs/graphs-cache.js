@@ -2,6 +2,7 @@ const {CoinGeckoClient} = require('coingecko-api-v3');
 const coinGeckoClient = new CoinGeckoClient();
 var fs = require('fs');
 var shell = require('shelljs');
+const { log: plog } = require('./prediction-logger');
 
 const ONE_MIN = 1000 * 60
 const ONE_HOUR = ONE_MIN * 60
@@ -66,25 +67,28 @@ class GraphsCache {
             return this.predictionQueueByCoin[coin] = this.predictionQueue = this.predictionQueue.then(() => {
                 return new Promise((resolvePromise, rejectPromise) => {
                     let pricesData = []
+                    plog(`Fetching price data from CoinGecko for ${coin}...`)
                     coinGeckoClient.coinIdMarketChartRange({
                         id: coin,
                         vs_currency: "usd",
                         from: (Date.now() - 31104000) / 1000, // New coingecko api limits to 365 days of data.
                         to: Date.now() / 1000,
                     }).then((res) => {
-                        console.log("Got back data for prediction:")
-                        console.log(res)
+                        plog(`Got ${res.prices ? res.prices.length : 0} price points from CoinGecko for ${coin}`)
                         pricesData = res.prices
                         this.fillCache(coin, res.prices, true);
-                        // Only send last 2 years of data to neural net to minimize processing
+                        // Only send last year of data to neural net to minimize processing
                         return this.runPrediction(coin, pricesData.filter(d => d[0] >= now - ONE_YEAR_ALMOST))
                     }).then((prophetData) => {
                         // Prevent any further promise chaining on this coin
                         delete this.predictionQueueByCoin[coin]
                         this.savePredictionCacheJSON(coin, [pricesData, prophetData])
+                        plog(`Prediction complete for ${coin}: ${prophetData.length} prediction points`)
                         resolvePromise([pricesData, prophetData])
                     }).catch((err) => {
-                        console.log("error for coin "+ coin)
+                        plog(`Error fetching/predicting for ${coin}: ${err.message || err}`)
+                        delete this.predictionQueueByCoin[coin]
+                        resolvePromise([[], []]) // Return empty so request doesn't hang
                     });
                 })
             })
@@ -92,14 +96,29 @@ class GraphsCache {
     }
 
     getPredictionCacheCSV(coin) {
-        //return []
-        var csv = fs.readFileSync(`./cryptodash-prediction/predictions-cache/${coin}.csv`, 'utf8')
-        console.log(`loaded in js`)
-        var lines = csv.trim().split(/\r\n|\n/).slice(1).map((l) => l.split(",").slice(1));
-        console.log(lines)
-        var data = lines.map((lineArr) => [new Date(Number(lineArr[0]) || lineArr[0]).getTime(), Number(lineArr.pop()) /*yhat*/])
-        console.log(data)
-        return data
+        try {
+            const filePath = `./cryptodash-prediction/predictions-cache/${coin}.csv`
+            plog(`Reading prediction cache from: ${filePath}`)
+            
+            if (!fs.existsSync(filePath)) {
+                plog(`Prediction cache file not found: ${filePath}`)
+                return []
+            }
+            
+            var csv = fs.readFileSync(filePath, 'utf8')
+            plog(`Loaded prediction CSV (${csv.length} bytes)`)
+            
+            var lines = csv.trim().split(/\r\n|\n/).slice(1).map((l) => l.split(",").slice(1));
+            plog(`Parsed ${lines.length} prediction lines`)
+            
+            var data = lines.map((lineArr) => [new Date(Number(lineArr[0]) || lineArr[0]).getTime(), Number(lineArr.pop())])
+            plog(`Processed ${data.length} predictions`)
+            
+            return data
+        } catch (err) {
+            plog(`Error reading prediction cache for ${coin}: ${err.message}`)
+            return []
+        }
     }
 
     runPrediction(coin, data) {
@@ -122,14 +141,36 @@ class GraphsCache {
                 return `"${pandaTimestamp}",${val}`
             }).join("\n") + "\n"
 
-            // Run python script to get a 90 day forecast of what will happen next
+            // Run python script to get a 14 day forecast
             let that = this
-            console.log(`Updating HTM prediction for ${coin}`)
-            fs.writeFileSync(`cryptodash-prediction/${coin}.csv`, csv)
-            shell.exec(`(cd ./cryptodash-prediction; python predict.py ${coin}.csv; rm ${coin}.csv)`, (err, stdout, stderr) => {
-                console.log(`Finished running HTM prediction for ${coin}`)
-                let mostRecentRealTime = data.slice(-1)[0][0]
-                resolvePromise(that.getPredictionCacheCSV(coin).filter(d => d[0] > mostRecentRealTime))
+            plog(`Updating neural net prediction for ${coin}`)
+            plog(`Current working directory: ${process.cwd()}`)
+            
+            const inputPath = `cryptodash-prediction/${coin}.csv`
+            plog(`Writing input CSV to: ${inputPath}`)
+            fs.writeFileSync(inputPath, csv)
+            plog(`Input CSV written (${csv.length} bytes)`)
+            
+            const shellCmd = `(cd ./cryptodash-prediction && python3 predict.py ${coin}.csv && rm ${coin}.csv)`
+            plog(`Running shell command: ${shellCmd}`)
+            
+            shell.exec(shellCmd, { timeout: 60000 }, (err, stdout, stderr) => {
+                try {
+                    plog(`Finished running neural net prediction for ${coin}`)
+                    if (err) plog(`Prediction error: ${err}`)
+                    if (stderr) plog(`Prediction stderr: ${stderr}`)
+                    if (stdout) plog(`Prediction stdout: ${stdout}`)
+                    
+                    let mostRecentRealTime = data.slice(-1)[0][0]
+                    let predictions = that.getPredictionCacheCSV(coin)
+                    let filteredPredictions = predictions.filter(d => d[0] > mostRecentRealTime)
+                    
+                    plog(`Returning ${filteredPredictions.length} predictions (filtered from ${predictions.length})`)
+                    resolvePromise(filteredPredictions)
+                } catch (callbackErr) {
+                    plog(`Error in prediction callback: ${callbackErr.message}`)
+                    resolvePromise([]) // Return empty array so request doesn't hang
+                }
             })
         })
     }
@@ -283,18 +324,25 @@ class GraphsCache {
     }
 
     getGraphAndPrediction(coin) {
-        console.log(`Checking if ${coin} prediction already cached...`)
+        plog(`=== getGraphAndPrediction called for ${coin} ===`)
         let tryGetFromCache = this.getPredictionCacheJSON(coin)
         let lastRealData = tryGetFromCache[0].slice().pop()
-        console.log("lastRealData")
-        console.log(lastRealData)
+        
+        if (lastRealData) {
+            const cacheAge = Date.now() - lastRealData[0]
+            const cacheAgeHours = (cacheAge / ONE_HOUR).toFixed(1)
+            plog(`Cache for ${coin}: last data point ${cacheAgeHours} hours old`)
+        } else {
+            plog(`No cache found for ${coin}`)
+        }
 
-        // Only run 1 prediction cache for a coin per hour.
+        // Only run 1 prediction cache for a coin per 24 hours.
         if (lastRealData && Date.now() - lastRealData[0] < ONE_HOUR * 24) {
-            console.log(`Succesfully got data from prediction cache for ${coin}, serving from cache`)
+            plog(`Serving ${coin} from cache (${tryGetFromCache[0].length} prices, ${tryGetFromCache[1].length} predictions)`)
             return Promise.resolve(tryGetFromCache)
         }
         else {
+            plog(`Cache miss/stale for ${coin}, adding to prediction queue`)
             return this.addToPredictionQueue(coin)
         }
     }
