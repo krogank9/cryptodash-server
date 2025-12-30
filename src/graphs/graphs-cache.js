@@ -9,6 +9,7 @@ const ONE_DAY = ONE_HOUR * 24
 const ONE_WEEK = ONE_DAY * 7
 const ONE_MONTH = ONE_DAY * 30
 const ONE_YEAR = ONE_DAY * 365
+const ONE_YEAR_ALMOST = ONE_DAY * 365 - ONE_DAY * 5
 
 const timeFrames = {
     "1d": ONE_DAY,
@@ -71,10 +72,12 @@ class GraphsCache {
                         from: (Date.now() - 31104000) / 1000, // New coingecko api limits to 365 days of data.
                         to: Date.now() / 1000,
                     }).then((res) => {
+                        console.log("Got back data for prediction:")
+                        console.log(res)
                         pricesData = res.prices
                         this.fillCache(coin, res.prices, true);
                         // Only send last 2 years of data to neural net to minimize processing
-                        return this.runPrediction(coin, pricesData.filter(d => d[0] >= now - ONE_YEAR))
+                        return this.runPrediction(coin, pricesData.filter(d => d[0] >= now - ONE_YEAR_ALMOST))
                     }).then((prophetData) => {
                         // Prevent any further promise chaining on this coin
                         delete this.predictionQueueByCoin[coin]
