@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Lightweight Neural Network Price Predictor
 A simple feed-forward neural network for cryptocurrency price prediction.
